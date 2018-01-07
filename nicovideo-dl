@@ -342,14 +342,14 @@ if account_username is not None:
 file_urls = []
 if cmdl_opts.get_playlist:
     for playlist_url in cmdl_args:
+        cond_print('Load javascript...')
         options = Options()
         options.add_argument('--headless')
         driver = webdriver.Chrome(chrome_options=options)
         driver.get(playlist_url)
-        time.sleep(10)
         html = driver.page_source
         file_urls = parse_html(html)
-        cond_print('Total Playlist Size: %s' % len(file_urls))
+        cond_print('Total Playlist Size: %s\n' % len(file_urls))
         driver.quit()
 else:
     file_urls = cmdl_args
