@@ -42,12 +42,16 @@ import sys
 import time
 import urllib2
 import cgi
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 # Global constants
 const_1k = 1024
 const_initial_block_size = 10 * const_1k
 const_epsilon = 0.0001
 const_timeout = 120
+const_status_ok = 200
 
 const_video_url_str = 'http://www.nicovideo.jp/watch/%s'
 const_video_url_re = re.compile(r'^((?:http://)?(?:\w+\.)?(?:nicovideo\.jp/(?:v/|(?:watch(?:\.php)?))?/)?(\w+))')
@@ -160,6 +164,15 @@ def extract_step(step_title, step_error, regexp, data):
 	except KeyboardInterrupt:
 		sys.exit('\n')
 
+def parse_html(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    urls = []
+    tags = soup.select('[class="watch"]')
+    for a in tags:
+        if a.get('href') != None:
+            urls.append('http://www.nicovideo.jp%s' % a.get('href'))
+    return urls
+
 # Calculate new block size based on previous block size
 def new_block_size(before, after, bytes):
 	new_min = max(bytes / 2.0, 1.0)
@@ -230,6 +243,7 @@ cmdl_parser.add_option('-n', '--netrc', action='store_true', dest='use_netrc', h
 cmdl_parser.add_option('-g', '--get-url', action='store_true', dest='get_url', help='print final video URL only')
 cmdl_parser.add_option('-2', '--title-too', action='store_true', dest='get_title', help='used with -g, print title too')
 cmdl_parser.add_option('-P', '--pit', action='store_true', dest='use_pit', help='use Pit for authentication')
+cmdl_parser.add_option('-l', '--playlist', action='store_true', dest='get_playlist', help='download from the playlist')
 (cmdl_opts, cmdl_args) = cmdl_parser.parse_args()
 
 # Set socket timeout
@@ -325,7 +339,21 @@ if account_username is not None:
 	post = const_login_post_str % (account_username, account_password)
 	download_step(False, 'Logging in', 'unable to log in', url, post)
 
-for video_url_cmdl in cmdl_args:
+file_urls = []
+if cmdl_opts.get_playlist:
+    for playlist_url in cmdl_args:
+        options = Options()
+        options.add_argument('--headless')
+        driver = webdriver.Chrome(chrome_options=options)
+        driver.get(playlist_url)
+        html = driver.page_source
+        file_urls = parse_html(html)
+        cond_print('Total Playlist Size: %s' % len(file_urls))
+        driver.quit()
+else:
+    file_urls = cmdl_args
+
+for video_url_cmdl in file_urls:
 	# Verify video URL format and convert to "standard" format
 	video_url_mo = const_video_url_re.match(video_url_cmdl)
 	if video_url_mo is None:
